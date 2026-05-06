@@ -698,7 +698,7 @@ class Backend(object):
         interactive backend is not possible, return _default_file_backend()
         """
         if self._running_in_x11() or self._running_in_windows():
-            backend = 'TkAgg'
+            backend = 'qtagg'
         elif self._running_in_macosx():
             backend = 'macosx'
         else:
