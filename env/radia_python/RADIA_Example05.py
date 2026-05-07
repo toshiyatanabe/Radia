@@ -7,6 +7,7 @@
 from __future__ import absolute_import, division, print_function #Py 2.*/3.* compatibility
 import radia as rad
 from uti_plot import *
+from uti_radia_vtk import ObjDrwPyVista
 from time import *
 from math import *
 from array import *
@@ -145,7 +146,7 @@ if __name__=="__main__":
     size=rad.ObjDegFre(t)
 
     #Display the Geometry
-    rad.ObjDrwOpenGL(t)
+    ObjDrwPyVista(t)
 
     #Solve the Geometry
     t1=time()
@@ -185,7 +186,7 @@ if __name__=="__main__":
 
     #Creating the Model and Solving with Rectangular Segmentation in the Corners
     t = Geom(0)
-    rad.ObjDrwOpenGL(t)
+    ObjDrwPyVista(t)
 
     t1=time()
     res=rad.Solve(t,0.0001,1500)

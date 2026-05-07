@@ -8,6 +8,7 @@ from __future__ import absolute_import, division, print_function
 import radia as rad
 
 from uti_plot import *
+from uti_radia_vtk import ObjDrwPyVista
 from time import *
 from math import *
 from array import *
@@ -195,7 +196,7 @@ if __name__=="__main__":
     print('Delta Int. Quad. @ 10 mm = ', round(100*(Iz1/Iz-1),2), '%')
     
     #Display the Geometry
-    rad.ObjDrwOpenGL(g)
+    ObjDrwPyVista(g)
 
     #Magnetic Field Plots
     z = 0; x1 = 0; x2 = 30; ymax = 40; np = 20

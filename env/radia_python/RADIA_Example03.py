@@ -7,6 +7,7 @@
 from __future__ import absolute_import, division, print_function #Py 2.*/3.* compatibility
 import radia as rad
 from uti_plot import *
+from uti_radia_vtk import ObjDrwPyVista
 import time
 
 print('RADIA Python Example #3:')
@@ -124,7 +125,7 @@ if __name__=="__main__":
     #Build the Structure
     und, pole, magnet = Und(lp, mp, np, cp, lm, mm, nm, cm, gap, gapOffset, numPer)
     #Show the Structure in 3D Viewer
-    rad.ObjDrwOpenGL(und)
+    ObjDrwPyVista(und)
 
     #Solve the Magnetization Problem
     t0 = time.time()

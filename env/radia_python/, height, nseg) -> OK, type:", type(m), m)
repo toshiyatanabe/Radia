@@ -1,0 +1,4 @@
+Help on built-in function ObjCylMag in module radia:
+
+OObbjjCCyyllMMaagg(...)
+    ObjCylMag([x,y,z],r,h,nseg,a:'z',[mx,my,mz]:[0,0,0]) creates a cylindrical magnet approximated by a straight prism with a right polygon in base with center point [x,y,z], base radius r, height h, number of segments nseg, orientation of the rotation axis defined by character a (which can be 'x', 'y' or 'z'), and magnetization vector [mx,my,mz].
