@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: radia
+Version: 1.0
+Summary: This is Radia for Python
+Home-page: http://github.com/ochubar/Radia
+Author: O. Chubar, P. Elleaume, J. Chavanne
+Author-email: chubar@bnl.gov
+Dynamic: author
+Dynamic: author-email
+Dynamic: description
+Dynamic: home-page
+Dynamic: summary
+
+This is Python interface to the Radia 3D magnetostatic code.
