@@ -131,6 +131,10 @@ def SCW(Period, Gap):
     SCoilCurDens      = 260.   # A/mm²  — side coils
     CoilSubd          = 11
 
+    # Total current [A] = current density [A/mm²] × cross-section area [mm²]
+    CoilCurrentTot  = CoilCurDens  * CoilThickness * CoilHeight
+    SCoilCurrentTot = SCoilCurDens * CoilThickness * CoilHeight
+
     # Convenience vectors
     ZeroV = [0., 0., 0.]
     Vx    = [1., 0., 0.]
@@ -304,11 +308,15 @@ def SCW(Period, Gap):
                     [Coil00, CCoil00, Coil01, SCoil01, Coil02, SCoil02])
 
     return {
-        'Reference': tot,
-        'Yoke':      yokeall,
-        'Coil':      coilall,
-        'upper':     totupper,
-        'lower':     totlower,
+        'Reference':       tot,
+        'Yoke':            yokeall,
+        'Coil':            coilall,
+        'coilcenter':      coilcenter,
+        'coilsides':       coilsides,
+        'upper':           totupper,
+        'lower':           totlower,
+        'CoilCurrentTot':  CoilCurrentTot,
+        'SCoilCurrentTot': SCoilCurrentTot,
     }
 
 
@@ -348,10 +356,31 @@ if __name__ == '__main__':
     print(f'Central field  Bz(0,0,0) = {bz0:.4f} T')
     print(f'  (notebook reference: ~2.068 T)')
 
+    # ---- Self-inductance and energy (notebook: "Self Inductance and Energy") ----
+    # l1 = FldEnr(coilcenter, tt) / Cur²  (effective inductance from center coils)
+    # l2 = FldEnr(coilsides,  tt) / Cur²  (effective inductance from both side coil pairs)
+    # Self Inductance [μH] = 2e6 * (l1 + 2*l2)
+    # Coil System Energy [J] = (l1 + 2*l2) * Cur²
+    Cur  = Grp['CoilCurrentTot']
+    SCur = Grp['SCoilCurrentTot']
+    print()
+    print(f'Coil current — center: {Cur:.1f} A,  side: {SCur:.1f} A')
+    print('Computing self-inductance and energy  (this may take ~1 min)...')
+    t0 = time()
+    rad.FldCmpPrc('PrcEnergy->1e-7')
+    l1 = abs(rad.FldEnr(Grp['coilcenter'], tt, [10, 10, 10]) / Cur**2)
+    l2 = abs(rad.FldEnr(Grp['coilsides'],  tt, [10, 10, 10]) / Cur**2)
+    t1 = time()
+    L_uH = 2.0e6 * (l1 + 2. * l2)
+    E_J  = (l1 + 2. * l2) * Cur**2
+    print(f'Self Inductance    : {L_uH:.4f} \u03bcH  (notebook: 0.163 \u03bcH)')
+    print(f'Coil System Energy : {E_J:.1f} J  (notebook: 2033.5 J)')
+    print(f'Energy time        : {t1 - t0:.1f} s')
+
     # ---- Force between jaws ----
     print()
     print('Computing force on upper jaw in field of lower jaw...')
-    VectF = rad.FldEnrFrc(Grp['upper'], Grp['lower'], [2, 2, 2])
+    VectF = rad.FldEnrFrc(Grp['upper'], Grp['lower'], 'Fxyz', [2, 2, 2])
     print(f'Force vector [Fx, Fy, Fz] = '
           f'[{VectF[0]:.1f}, {VectF[1]:.1f}, {VectF[2]:.1f}] N')
     print(f'Fz = {VectF[2]:.1f} N')
