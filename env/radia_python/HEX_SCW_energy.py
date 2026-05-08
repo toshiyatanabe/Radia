@@ -22,11 +22,10 @@ Key output:
   - Icoil : coil current per turn [A]
   - Ltot  : total inductance [H] = 2*enrj / Icoil^2
 
-Expected results (from original notebook, seg=[4,4,4]):
-  enrj  ≈ 37321 J   (iron only, seg=[4,4,4])
-  enrj  ≈ 114535 J  (full obj, no subdivision)
+Expected results (FEM reference):
+  enrj  ≈ 64000 J   (full obj, Method 2 -- from independent FEM)
   Icoil ≈ 443 A
-  Ltot  ≈ 1.159 H
+  Ltot  ≈ ~0.65 H  (= 2*64000/443^2)
 """
 
 import math
@@ -306,7 +305,7 @@ t4 = time.time()
 enrj_iron = abs(rad.FldEnr(ccontf_ref, ironcf_ref, [4, 4, 4]))
 t5 = time.time()
 print(f'  enrj (iron only) = {enrj_iron:.4f} J   (time: {t5-t4:.1f} s)')
-print(f'  Expected: ~37321 J')
+print(f'  Expected: not yet validated against FEM')
 
 # Method 2: coils in field of full magnet (coils + iron), no subdivision
 print('\nMethod 2: FldEnr(ccontf, obj)  -- full magnet, precision-based')
@@ -314,15 +313,15 @@ t6 = time.time()
 enrj_full = abs(rad.FldEnr(ccontf_ref, obj))
 t7 = time.time()
 print(f'  enrj (full) = {enrj_full:.4f} J   (time: {t7-t6:.1f} s)')
-print(f'  Expected: ~114535 J')
+print(f'  Expected: ~64000 J  (independent FEM reference)'), print(f'  Note: values above ~200000 J indicate a remaining bug')
 
 # Method 3: full magnet with subdivision [8,8,8]
-print('\nMethod 3: FldEnr(ccontf, obj, [8,8,8])  -- full magnet, subdivision')
-t8 = time.time()
-enrj_sub8 = abs(rad.FldEnr(ccontf_ref, obj, [8, 8, 8]))
-t9 = time.time()
-print(f'  enrj (seg=[8,8,8]) = {enrj_sub8:.4f} J   (time: {t9-t8:.1f} s)')
-print(f'  Expected: ~113471 J')
+#print('\nMethod 3: FldEnr(ccontf, obj, [8,8,8])  -- full magnet, subdivision')
+#t8 = time.time()
+#enrj_sub8 = abs(rad.FldEnr(ccontf_ref, obj, [8, 8, 8]))
+#t9 = time.time()
+#print(f'  enrj (seg=[8,8,8]) = {enrj_sub8:.4f} J   (time: {t9-t8:.1f} s)')
+#print(f'  Expected: ~113471 J')
 
 # ------ Inductance ------
 # Icoil = J * (cross-section area) / N_turns
@@ -337,5 +336,5 @@ print(f'\nCoil current Icoil = {Icoil:.4f} A  (expected: ~443 A)')
 enrj = enrj_full
 Ltot = 2.0 * enrj / Icoil**2
 print(f'Total inductance Ltot = 2*enrj/Icoil^2 = {Ltot:.6f} H')
-print(f'Expected: ~1.159 H')
+print(f'Expected: ~0.65 H  (from FEM 64000 J reference)')
 print(f'\nLtot = {Ltot*1e3:.3f} mH')

@@ -119,13 +119,13 @@ void radTg3d::NestedFor_Energy(radTField* FieldPtr, const radTlphg::iterator& It
 		double LocEnergyMult1 =0.;
 
 		radTField BufField(FieldPtrFieldKey, FieldPtr->CompCriterium, FieldPtr->HandleEnergyForceTorqueCompData);
-		BufField.Energy = FieldPtr->Energy;
+		BufField.Energy = 0.;
 
 		Energy_Or_NestedFor(&BufField, LocalNextIter);
 		LocEnergyMult1 = BufField.Energy;
 
 		BufField = radTField(FieldPtrFieldKey, FieldPtr->CompCriterium, FieldPtr->HandleEnergyForceTorqueCompData);
-		BufField.Energy = FieldPtr->Energy;
+		BufField.Energy = 0.;
 
 		double &BufFieldEnergy = BufField.Energy;
 		SourcePtr->AddTransform(1, hInvTrans);
