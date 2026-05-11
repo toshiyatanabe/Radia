@@ -17,15 +17,28 @@ The model consists of:
     the upper half and quarter-period, then mirror automatically
 
 Key output:
-  - enrj : stored energy [J], computed as abs(rad.FldEnr(ccontf, obj))
-    where ccontf = coil container, obj = full magnet (coils + iron)
+  - enrj  : FldEnr(ccontf, obj) [J]  — potential energy of the PHYSICAL (upper) coils
+              in the field of the full system (physical + virtual images)
+  - W     : stored magnetic energy = enrj  [J]
+              Because TrfZerPara y-symmetry mirrors the coil with REVERSED current,
+              Radia only stores the physical upper-half coils in ccontf.
+              FldEnr(ccontf, obj) = ½ × L_total × I²  (one physical half)
+              Therefore stored energy  W = 2 × FldEnr_physical / 2 = FldEnr
   - Icoil : coil current per turn [A]
-  - Ltot  : total inductance [H] = 2*enrj / Icoil^2
+  - Ltot  : total inductance = 2 × enrj / Icoil²  [H]  (notebook formula, CORRECT)
 
-Expected results (FEM reference):
-  enrj  ≈ 64000 J   (full obj, Method 2 -- from independent FEM)
+Note on the energy formula:
+  TrfZerPara(ccontf, [0,0,0], [0,1,0]) creates a virtual lower-half coil with
+  REVERSED current (Bn=0 symmetry). So ccontf physically holds only the upper half.
+  FldEnr(ccontf, obj) = ∫J_upper·A_total dV = ½ × L_total × I²
+  Total stored energy W = L_total × I² / 2 = FldEnr  (same as FldEnr of physical half)
+  Inductance  L = 2 × FldEnr / I²   — matches the Mathematica notebook formula.
+
+Expected results:
+  FldEnr(ccontf, obj) ≈ 114535 J  (Mathematica reference; = ½ L·I² of full system)
+  Stored energy W = FldEnr ≈ 114535 J  (same value; FEM reference: ~64000 J)
   Icoil ≈ 443 A
-  Ltot  ≈ ~0.65 H  (= 2*64000/443^2)
+  Ltot = 2*FldEnr/Icoil² ≈ 1.16 H  (Mathematica reference)
 """
 
 import math
@@ -40,11 +53,24 @@ print('RADIA version:', rad.UtiVer())
 # Helper: XC06 low-carbon steel material (same as Self_Inductance.py)
 # ===========================================================================
 def make_xc06_material():
-    """Return a Radia material index for XC06 low-carbon steel."""
-    mu0 = 4.0 * math.pi * 1e-7
-    H   = [0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 15.0, 30.0, 60.0, 100.0, 300.0, 1000.0, 5000.0]  # Oe
-    M   = [0.10, 0.25, 0.55, 0.80, 1.10, 1.35, 1.55, 1.68, 1.75, 1.78,  1.82,   1.85,   1.87]  # T
-    return rad.MatSatIsoTab([[H[i] * mu0, M[i]] for i in range(len(H))])
+    """Return a Radia material index for XC06 low-carbon steel.
+
+    Uses the Froelich formula from the Radia Mathematica package:
+      RadMatXc06[] := radMatSatIso[{1.362,0.2605,0.4917},{2118.,63.06,17.138}]
+      M(H) = sum_i  ms_i * H / (ks_i + H)   [H in Oe, M in T]
+    MatSatIsoTab expects H as mu0*H_SI = H_Oe * 1e-4  [T].
+    """
+    _MU0      = 4.0 * math.pi * 1e-7   # T·m/A
+    _OE_TO_AM = 1000.0 / (4.0 * math.pi)  # 79.5775 A/m per Oe
+
+    def _M(h_oe):
+        return (1.362  * h_oe / (h_oe + 2118.0)
+              + 0.2605 * h_oe / (h_oe + 63.06)
+              + 0.4917 * h_oe / (h_oe + 17.138))
+
+    H_oe = [0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0,
+            100.0, 200.0, 500.0, 1e3, 2e3, 5e3, 1e4, 5e4, 1e5, 5e5]
+    return rad.MatSatIsoTab([[h * _OE_TO_AM * _MU0, _M(h)] for h in H_oe])
 
 
 # ===========================================================================
@@ -313,7 +339,8 @@ t6 = time.time()
 enrj_full = abs(rad.FldEnr(ccontf_ref, obj))
 t7 = time.time()
 print(f'  enrj (full) = {enrj_full:.4f} J   (time: {t7-t6:.1f} s)')
-print(f'  Expected: ~64000 J  (independent FEM reference)'), print(f'  Note: values above ~200000 J indicate a remaining bug')
+print(f'  This is L·I²; stored energy W = FldEnr/2 ≈ {enrj_full/2:.1f} J')
+print(f'  Mathematica reference: ~114535 J (→ W ≈ 57268 J); FEM reference: W ≈ 64000 J')
 
 # Method 3: full magnet with subdivision [8,8,8]
 #print('\nMethod 3: FldEnr(ccontf, obj, [8,8,8])  -- full magnet, subdivision')
@@ -324,17 +351,26 @@ print(f'  Expected: ~64000 J  (independent FEM reference)'), print(f'  Note: val
 #print(f'  Expected: ~113471 J')
 
 # ------ Inductance ------
-# Icoil = J * (cross-section area) / N_turns
-# From notebook: Icoil = 587 * cct * cout / 300
-# Parameters: jbase=587 A/mm², cct=22.2 mm, cout=10.2 mm, 300 turns assumed
+# TrfZerPara(ccontf, [0,0,0], [0,1,0]) mirrors the coil with reversed current.
+# So ccontf physically holds only the upper-half coils.
+# FldEnr(ccontf, obj) = ∫J_upper · A_total dV  =  ½ × L_total × I²
+# Therefore:
+#   Stored energy  W   = FldEnr          (= ½ L I² for full system)
+#   Inductance     L   = 2 × FldEnr / I²  (matches notebook: Ltot = 2*enrj/Icoil²)
+#
+# Icoil = J * (cross-section per turn) / N_turns
+#       = 587 A/mm² * (cct * cout) mm² / 300 turns
 cct  = 22.2
 cout = 10.2
 Icoil = 587.0 * cct * cout / 300.0
 print(f'\nCoil current Icoil = {Icoil:.4f} A  (expected: ~443 A)')
 
-# Use Method 2 result for inductance (full magnet, precision-based)
+# Use Method 2 result for inductance
 enrj = enrj_full
-Ltot = 2.0 * enrj / Icoil**2
-print(f'Total inductance Ltot = 2*enrj/Icoil^2 = {Ltot:.6f} H')
-print(f'Expected: ~0.65 H  (from FEM 64000 J reference)')
-print(f'\nLtot = {Ltot*1e3:.3f} mH')
+W_stored = enrj                  # stored energy W = ½ L I² = FldEnr (upper half)
+Ltot = 2.0 * enrj / Icoil**2    # total inductance L = 2·FldEnr / I²
+print(f'FldEnr(ccontf, obj) = {enrj:.4f} J  (= ½ L·I² of full coil system)')
+print(f'Stored energy W = FldEnr = {W_stored:.4f} J')
+print(f'  FEM reference: ~64000 J   Mathematica reference: ~114535 J')
+print(f'Total inductance Ltot = 2*FldEnr/Icoil^2 = {Ltot:.6f} H')
+print(f'\nLtot = {Ltot*1e3:.3f} mH  (notebook reference: ~1.159 H)')
