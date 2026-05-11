@@ -311,8 +311,10 @@ def SCW(Period, Gap):
         'Reference':       tot,
         'Yoke':            yokeall,
         'Coil':            coilall,
-        'coilcenter':      coilcenter,
-        'coilsides':       coilsides,
+        'coilcenter':      coilcenter,    # center coils upper+lower (currents +I / -I)
+        'coilsides':       coilsides,     # side coils all four
+        'coilupper':       coilupper,     # upper jaw coils only (+I)
+        'coillower':       coillower,     # lower jaw coils only (-I)
         'upper':           totupper,
         'lower':           totlower,
         'CoilCurrentTot':  CoilCurrentTot,
@@ -356,11 +358,21 @@ if __name__ == '__main__':
     print(f'Central field  Bz(0,0,0) = {bz0:.4f} T')
     print(f'  (notebook reference: ~2.068 T)')
 
-    # ---- Self-inductance and energy (notebook: "Self Inductance and Energy") ----
-    # l1 = FldEnr(coilcenter, tt) / Cur²  (effective inductance from center coils)
-    # l2 = FldEnr(coilsides,  tt) / Cur²  (effective inductance from both side coil pairs)
-    # Self Inductance [μH] = 2e6 * (l1 + 2*l2)
-    # Coil System Energy [J] = (l1 + 2*l2) * Cur²
+    # ---- Self-inductance and energy ----
+    # FldEnr(dst, src) = ∫J_dst · A_src dV  [J]
+    # For a coil pair: FldEnr(coil, system) accounts for mutual coupling.
+    # The "potential energy" FldEnr = L·I² (NOT ½L·I²).
+    # Stored magnetic energy W = ½·L·I².
+    #
+    # The notebook computes (l1 + 2*l2)*Cur² where coilcenter has BOTH
+    # upper (+I) and lower (-I) center coils. Because lower current = -I,
+    # the FldEnr of coilcenter partially cancels, so the notebook energy
+    # is an *effective* quantity, not the full stored energy.
+    #
+    # For comparison with Opera-3D (which gives true stored W = ½LI²),
+    # we also compute: FldEnr(coilupper, tt) = contribution of upper coils
+    # alone. For a symmetric opposing-current system:
+    #   W_total = FldEnr(coilupper, tt)  [by symmetry, upper = lower contribution]
     Cur  = Grp['CoilCurrentTot']
     SCur = Grp['SCoilCurrentTot']
     print()
@@ -368,14 +380,28 @@ if __name__ == '__main__':
     print('Computing self-inductance and energy  (this may take ~1 min)...')
     t0 = time()
     rad.FldCmpPrc('PrcEnergy->1e-7')
+    # Notebook method: coilcenter = {upper +I, lower -I}, coilsides = all 4
     l1 = abs(rad.FldEnr(Grp['coilcenter'], tt, [10, 10, 10]) / Cur**2)
     l2 = abs(rad.FldEnr(Grp['coilsides'],  tt, [10, 10, 10]) / Cur**2)
+    L_nb_uH = 2.0e6 * (l1 + 2. * l2)
+    E_nb    = (l1 + 2. * l2) * Cur**2
+    # Upper-jaw method: FldEnr of upper coils only in full-system field
+    enr_upper = abs(rad.FldEnr(Grp['coilupper'], tt, [10, 10, 10]))
     t1 = time()
-    L_uH = 2.0e6 * (l1 + 2. * l2)
-    E_J  = (l1 + 2. * l2) * Cur**2
-    print(f'Self Inductance    : {L_uH:.4f} \u03bcH  (notebook: 0.163 \u03bcH)')
-    print(f'Coil System Energy : {E_J:.1f} J  (notebook: 2033.5 J)')
-    print(f'Energy time        : {t1 - t0:.1f} s')
+    # By symmetry, stored energy W = enr_upper (upper jaw contribution = ½ total L·I²)
+    W_stored  = enr_upper
+    L_eff_uH  = 2.0e6 * enr_upper / Cur**2   # total L = 2 × (upper contribution / I²)
+    print()
+    print('--- Notebook method (matches Mathematica .nb) ---')
+    print(f'  L  = {L_nb_uH:.4f} µH   (notebook: 0.163 µH)')
+    print(f'  E  = {E_nb:.1f} J     (notebook: 2033.5 J = L·I²)')
+    print()
+    print('--- Upper-jaw method: FldEnr(coilupper, full system) ---')
+    print(f'  FldEnr(coilupper) = {enr_upper:.1f} J')
+    print(f'  L_eff             = {L_eff_uH:.4f} µH  (effective L for opposing-current system)')
+    print(f'  Stored energy W   = {W_stored:.1f} J  (true stored energy = (L-M)·I²)')
+    print(f'    cf. Opera-3D reference ~1250 J')
+    print(f'Energy time : {t1 - t0:.1f} s')
 
     # ---- Force between jaws ----
     print()
