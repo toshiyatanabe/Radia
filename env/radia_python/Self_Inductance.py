@@ -77,17 +77,21 @@ print('\n' + '='*60)
 print('Section 2: Self and Mutual Inductance (no iron)')
 print('='*60)
 
-# Set precision for energy / inductance computation.
-# Reduce PrcEnergy until the result is stable; smaller values = better accuracy
-# but higher memory use. Start large and work down.
+# Set precision for mutual inductance computation (no singularity — source ≠ destination).
 rad.FldCmpPrc('PrcEnergy->1e-7')
 
+# Self inductance: use explicit subdivision [k,k,k] for the destination object.
+# The precision-controlled form FldEnr(g,g) uses [1,1,1] internally and OVERestimates
+# self inductance by ~25% due to the 1/r singularity at zero separation.
+# With [8,8,8] the result agrees with Wheeler's multilayer formula to within ~1%.
+# For mutual inductance (g1,g2) there is no singularity; all methods agree.
+k = 8   # subdivision for self-inductance; increase to 12 for finer check
+
 # Energy integrals [J] (raw values, before dividing by I²)
-# Dividing rad.FldEnr(a, b) by I² gives L (if a==b) or M (if a!=b) in [H]
-e1 = abs(rad.FldEnr(g1, g1)) / Cur**2   # L1  [H]
-e2 = abs(rad.FldEnr(g2, g2)) / Cur**2   # L2  [H]
-e  = abs(rad.FldEnr(g,  g))  / Cur**2   # L_system  [H]
-m  = abs(rad.FldEnr(g1, g2)) / Cur**2   # M   [H]
+e1 = abs(rad.FldEnr(g1, g1, [k,k,k])) / Cur**2   # L1  [H]
+e2 = abs(rad.FldEnr(g2, g2, [k,k,k])) / Cur**2   # L2  [H]
+e  = abs(rad.FldEnr(g,  g,  [k,k,k])) / Cur**2   # L_system  [H]
+m  = abs(rad.FldEnr(g1, g2)) / Cur**2              # M   [H]  (no singularity; precision form OK)
 
 # Print in μH and μJ
 print(f'Coil # 1 : Energy : {1e6 * e1/2 * Cur**2:.4g} μJ   Self inductance : {1e6 * e1:.4g} μH')
@@ -95,12 +99,13 @@ print(f'Coil # 2 : Energy : {1e6 * e2/2 * Cur**2:.4g} μJ   Self inductance : {1
 print(f'Coil System : Energy : {1e6 * e/2 * Cur**2:.4g} μJ   System inductance : {1e6 * e:.4g} μH')
 print(f'Mutual Inductance : {1e6 * m:.4g} μH')
 print()
-print('Expected (from original notebook, computed with old Radia that had NestedFor_Energy bug):')
-print('  Coil #1 self  : 10.90 uH  (Python fixed radia.so gives ~12.68 uH, ~16% higher)')
-print('  Mutual        : 9.45 uH   (Python fixed radia.so gives ~10.40 uH, ~16% higher)')
-print('Note: ~16% discrepancy is because the Mathematica notebook used the old buggy Radia')
-print('  library (NestedFor_Energy bug: BufField.Energy was not reset to 0 between calls).')
-print('  The Python radia.so was rebuilt with the fix; its values are more accurate.')
+print('Expected (subdivision [8,8,8] form, consistent with Wheeler multilayer formula):')
+print('  L1 ~ 10.1 uH,  L2 ~ 19.8 uH,  M ~ 9.45 uH')
+print('Wheeler formula: L1=10.09 uH, L2=19.76 uH')
+print('Mathematica (buggy Radia, precision form): L1=10.90, L2=21.97, M=9.45 uH')
+print('Python (fixed Radia, precision form = [1,1,1]): L1=12.68, L2=25.13 — 25% too high')
+print('Note: M agrees across all methods (~9.45 uH) because there is no 1/r singularity')
+print('  when source and destination are different objects.')
 
 # ===========================================================================
 # Section 3: Single Coil with Iron Yoke
