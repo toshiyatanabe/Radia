@@ -146,6 +146,7 @@ rad.ObjDrwAtr(m_iron, [0, 0.5, 0])
 #   M(H) = 1.362*H/(H+2118) + 0.2605*H/(H+63.06) + 0.4917*H/(H+17.138)
 #   [H in Oe, M in T]
 # MatSatIsoTab expects H_T = mu0*H_SI = H_Oe * 1e-4  [T]
+mu0 = 4.0 * math.pi * 1e-7   # [T·m/A]
 _OE_TO_AM = 1000.0 / (4.0 * math.pi)  # 79.5775 A/m per Oe
 def _M_xc06(h_oe):
     return (1.362*h_oe/(h_oe+2118.) + 0.2605*h_oe/(h_oe+63.06) + 0.4917*h_oe/(h_oe+17.138))
