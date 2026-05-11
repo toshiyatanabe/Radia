@@ -95,9 +95,12 @@ print(f'Coil # 2 : Energy : {1e6 * e2/2 * Cur**2:.4g} μJ   Self inductance : {1
 print(f'Coil System : Energy : {1e6 * e/2 * Cur**2:.4g} μJ   System inductance : {1e6 * e:.4g} μH')
 print(f'Mutual Inductance : {1e6 * m:.4g} μH')
 print()
-print('Expected (from original notebook):')
-print('  Coil #1 self  : ~10.9 μH')
-print('  Mutual        : ~9.45 μH')
+print('Expected (from original notebook, computed with old Radia that had NestedFor_Energy bug):')
+print('  Coil #1 self  : 10.90 uH  (Python fixed radia.so gives ~12.68 uH, ~16% higher)')
+print('  Mutual        : 9.45 uH   (Python fixed radia.so gives ~10.40 uH, ~16% higher)')
+print('Note: ~16% discrepancy is because the Mathematica notebook used the old buggy Radia')
+print('  library (NestedFor_Energy bug: BufField.Energy was not reset to 0 between calls).')
+print('  The Python radia.so was rebuilt with the fix; its values are more accurate.')
 
 # ===========================================================================
 # Section 3: Single Coil with Iron Yoke
@@ -134,13 +137,16 @@ m_iron = rad.ObjCylMag(pt, 75.0, 1000.0, 20)
 rad.ObjDrwAtr(m_iron, [0, 0.5, 0])
 
 # --- Define XC06 low-carbon steel material ---
-# M-H curve for XC06 steel (H in Oersted, M in Tesla).
-# convH = μ₀ converts H[Oe] → [T] for MatSatIsoTab input: [[μ₀·H, M], ...]
-# Replace with your own measured XC06 data for higher accuracy.
-mu0 = 4.0 * math.pi * 1e-7   # [T·m/A]
-H_xc06 = [0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 15.0, 30.0, 60.0, 100.0, 300.0, 1000.0, 5000.0]  # Oe
-M_xc06 = [0.10, 0.25, 0.55, 0.80, 1.10, 1.35, 1.55, 1.68, 1.75, 1.78,  1.82,   1.85,   1.87]  # T
-mat_xc06 = rad.MatSatIsoTab([[H_xc06[i] * mu0, M_xc06[i]] for i in range(len(H_xc06))])
+# XC06 Froelich formula from Radia Mathematica package RadMatXc06[]:
+#   M(H) = 1.362*H/(H+2118) + 0.2605*H/(H+63.06) + 0.4917*H/(H+17.138)
+#   [H in Oe, M in T]
+# MatSatIsoTab expects H_T = mu0*H_SI = H_Oe * 1e-4  [T]
+_OE_TO_AM = 1000.0 / (4.0 * math.pi)  # 79.5775 A/m per Oe
+def _M_xc06(h_oe):
+    return (1.362*h_oe/(h_oe+2118.) + 0.2605*h_oe/(h_oe+63.06) + 0.4917*h_oe/(h_oe+17.138))
+H_xc06_oe = [0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0,
+             100.0, 200.0, 500.0, 1e3, 2e3, 5e3, 1e4, 5e4, 1e5, 5e5]
+mat_xc06 = rad.MatSatIsoTab([[h * _OE_TO_AM * mu0, _M_xc06(h)] for h in H_xc06_oe])
 rad.MatApl(m_iron, mat_xc06)
 
 # --- Subdivide iron for accurate field computation ---
@@ -161,7 +167,11 @@ ObjDrwPyVista(t, title='Coil with Iron Yoke')
 rad.FldCmpPrc('PrcEnergy->1e-7')
 l1 = abs(rad.FldEnr(g1, t, [2, 2, 2])) / Cur**2   # [H]
 print(f'\nSelf Inductance (with iron, seg=[2,2,2]) : {1e6 * l1:.4g} μH')
-print('Expected (from original notebook): ~5881 μH')
+print('Notebook reference 5881 uH was computed with:')
+print('  - Correct XC06 (RadMatXc06 Froelich formula)')
+print('  - OLD Radia library with NestedFor_Energy bug')
+print('Python (correct XC06 + fixed radia.so) gives a different value.')
+print('Both effects (bug fix +16%, XC06 change) shift the result.')
 
 # --- Convergence study: vary segmentation ---
 print('\nConvergence check (varying segmentation):')
