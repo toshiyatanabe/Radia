@@ -995,7 +995,7 @@ void FieldEnergy P(( int, int, int,int,int ));
 
 :Begin:
 :Function:      FieldEnergy
-:Pattern:       radFldEnr[DestObjElemKey_, SourceObjElemKey_, SubdivParam_List:{0,0,0}]
+:Pattern:       radFldEnr[DestObjElemKey_, SourceObjElemKey_, SubdivParam_List:{1,1,1}]
 :Arguments:     { Round[DestObjElemKey], Round[SourceObjElemKey], Round[SubdivParam[[1]]],Round[SubdivParam[[2]]],Round[SubdivParam[[3]]] }
 :ArgumentTypes: { Integer, Integer, Integer,Integer,Integer }
 :ReturnType:    Manual
@@ -1006,7 +1006,7 @@ void FieldForceThroughEnergy P(( int, int, const char*, int,int,int ));
 
 :Begin:
 :Function:      FieldForceThroughEnergy
-:Pattern:       radFldEnrFrc[DestObjElemKey_, SourceObjElemKey_, ComponIDChar_String, SubdivParam_List:{0,0,0}]
+:Pattern:       radFldEnrFrc[DestObjElemKey_, SourceObjElemKey_, ComponIDChar_String, SubdivParam_List:{1,1,1}]
 :Arguments:     { Round[DestObjElemKey], Round[SourceObjElemKey], ComponIDChar, Round[SubdivParam[[1]]],Round[SubdivParam[[2]]],Round[SubdivParam[[3]]] }
 :ArgumentTypes: { Integer, Integer, String, Integer,Integer,Integer }
 :ReturnType:    Manual
@@ -1017,7 +1017,7 @@ void FieldTorqueThroughEnergy P(( int, int, const char*, double,double,double, i
 
 :Begin:
 :Function:      FieldTorqueThroughEnergy
-:Pattern:       radFldEnrTrq[DestObjElemKey_, SourceObjElemKey_, ComponIDChar_String, TorqueCentrPo_List:{0.,0.,0.}, SubdivParam_List:{0,0,0}]
+:Pattern:       radFldEnrTrq[DestObjElemKey_, SourceObjElemKey_, ComponIDChar_String, TorqueCentrPo_List:{0.,0.,0.}, SubdivParam_List:{1,1,1}]
 :Arguments:     { Round[DestObjElemKey], Round[SourceObjElemKey], ComponIDChar, N[TorqueCentrPo[[1]]],N[TorqueCentrPo[[2]]],N[TorqueCentrPo[[3]]], Round[SubdivParam[[1]]],Round[SubdivParam[[2]]],Round[SubdivParam[[3]]] }
 :ArgumentTypes: { Integer, Integer, String, Real,Real,Real, Integer,Integer,Integer }
 :ReturnType:    Manual

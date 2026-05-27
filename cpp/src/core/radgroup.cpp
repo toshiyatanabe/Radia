@@ -1761,7 +1761,14 @@ int radTGroup::NextStepEnergyForceTorqueComp(double* TotSubdArr, radThg& HandleO
 
 		if(!OldPtr->NextStepEnergyForceTorqueComp(TotSubdArr, hg, FieldPtr, LocMoreSubdNeeded)) return 0;
 
-		((radTg3d*)(hg.rep))->g3dListOfTransform = Oldg3dListOfTransform;
+		// Only restore transforms on the original element. If hg was replaced by a new
+		// subdivided group (hg.rep != hgOld.rep), restoring Oldg3dListOfTransform onto the
+		// new group would strip the symmetry transforms that were spliced onto it, causing
+		// those transforms to be absent in subsequent refinement iterations and leading to
+		// incorrect (inflated) energy accumulation. The new group's transforms are managed
+		// by ProceedNextStepEnergyForceTorqueComp and do not need to be reset here.
+		if(hg.rep == hgOld.rep)
+			((radTg3d*)(hg.rep))->g3dListOfTransform = Oldg3dListOfTransform;
 		MoreSubdNeeded |= LocMoreSubdNeeded;
 	}
 	OutMoreSubdNeeded = MoreSubdNeeded;
@@ -1798,7 +1805,9 @@ int radTGroup::ProceedNextStepEnergyForceTorqueComp(double* SubdArr, radThg& Han
 
 		if(!OldPtr->ProceedNextStepEnergyForceTorqueComp(SubdArr, hg, LocFieldPtr, FieldPtr, LocSubdNeed, XorYorZ)) return 0;
 
-		((radTg3d*)(hg.rep))->g3dListOfTransform = Oldg3dListOfTransform;
+		// Only restore transforms on the original element (same fix as NextStepEnergyForceTorqueComp).
+		if(hg.rep == hgOld.rep)
+			((radTg3d*)(hg.rep))->g3dListOfTransform = Oldg3dListOfTransform;
 		SubdNeed |= LocSubdNeed;
 	}
 

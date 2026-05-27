@@ -35,10 +35,10 @@ Note on the energy formula:
   Inductance  L = 2 × FldEnr / I²   — matches the Mathematica notebook formula.
 
 Expected results:
-  FldEnr(ccontf, obj) ≈ 114535 J  (Mathematica reference; = ½ L·I² of full system)
-  Stored energy W = FldEnr ≈ 114535 J  (same value; FEM reference: ~64000 J)
+  FldEnr(ccontf, obj) ≈ 63000 J  (= ½ L·I²; confirmed by FEM ~64000 J)
+  Stored energy W = FldEnr ≈ 63000 J
   Icoil ≈ 443 A
-  Ltot = 2*FldEnr/Icoil² ≈ 1.16 H  (Mathematica reference)
+  Ltot = 2*FldEnr/Icoil² ≈ 0.64 H
 """
 
 import math
@@ -339,8 +339,7 @@ t6 = time.time()
 enrj_full = abs(rad.FldEnr(ccontf_ref, obj))
 t7 = time.time()
 print(f'  enrj (full) = {enrj_full:.4f} J   (time: {t7-t6:.1f} s)')
-print(f'  This is L·I²; stored energy W = FldEnr/2 ≈ {enrj_full/2:.1f} J')
-print(f'  Mathematica reference: ~114535 J (→ W ≈ 57268 J); FEM reference: W ≈ 64000 J')
+print(f'  FldEnr = ½·L·I² = stored energy W ≈ {enrj_full:.1f} J  (FEM reference: ~64000 J)')
 
 # Method 3: full magnet with subdivision [8,8,8]
 #print('\nMethod 3: FldEnr(ccontf, obj, [8,8,8])  -- full magnet, subdivision')
@@ -371,6 +370,6 @@ W_stored = enrj                  # stored energy W = ½ L I² = FldEnr (upper ha
 Ltot = 2.0 * enrj / Icoil**2    # total inductance L = 2·FldEnr / I²
 print(f'FldEnr(ccontf, obj) = {enrj:.4f} J  (= ½ L·I² of full coil system)')
 print(f'Stored energy W = FldEnr = {W_stored:.4f} J')
-print(f'  FEM reference: ~64000 J   Mathematica reference: ~114535 J')
+print(f'  FEM reference: ~64000 J')
 print(f'Total inductance Ltot = 2*FldEnr/Icoil^2 = {Ltot:.6f} H')
-print(f'\nLtot = {Ltot*1e3:.3f} mH  (notebook reference: ~1.159 H)')
+print(f'\nLtot = {Ltot*1e3:.3f} mH  (FEM reference: ~0.65 H)')
