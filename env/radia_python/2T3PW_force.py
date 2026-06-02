@@ -42,6 +42,125 @@ print('RADIA version:', rad.UtiVer())
 
 
 # ===========================================================================
+# Stored magnetic energy by direct volume integral of B^2/(2*mu0)
+# ---------------------------------------------------------------------------
+# For a linear (or air) region, the magnetic energy density is
+#     w = B.B / (2*mu0)                                  [J/m^3]
+# and W = integral(w dV) gives the true stored energy.
+#
+# In an iron‑dominated electromagnet ~90 % of the stored energy lives in the
+# air gap, so integrating B^2/(2*mu0) over the air region of a bounding box
+# that encloses the magnet yields a stored‑energy estimate that is directly
+# comparable to Opera‑3D's "stored magnetic energy" value (which is
+# integral(H.dB) and equals B^2/(2*mu0) in vacuum/air).
+#
+# The full magnet (upper + lower jaws) has mirror symmetry about x=0, y=0
+# and z=0, so we integrate over a single octant (x,y,z >= 0) and multiply
+# by 8.  Points that fall inside iron are dropped from the air integral
+# (the iron tip volume is small, but its B^2/(2*mu0) value is unphysical
+# for saturated steel and must not be included).
+# ===========================================================================
+_MU0_SI = 4.0 * pi * 1e-7   # T*m/A
+
+
+def _point_in_iron(x, y, z, Period, Gap,
+                    YokePoleHeight=30., YokePoleWidth=80.,
+                    YokePlateHeight=30., YokePlateWidth=115.):
+    """Return True if (x,y,z) lies inside the upper‑jaw iron of the 3PW.
+
+    Geometry (mirror it for the lower jaw with z -> -z).
+    Uses the same numbers as SCW().
+    """
+    if z < 0.5 * Gap:
+        return False
+    YokePoleLength  = 0.5 * Period * (8. / 12.5)
+    YokePlateLength = 0.5 * Period
+    # Pole piece:    |x|<=W/2, |y|<=PoleLength/2, Gap/2 <= z <= Gap/2+H
+    if (abs(x) <= 0.5 * YokePoleWidth
+        and abs(y) <= 0.5 * YokePoleLength
+        and z <= 0.5 * Gap + YokePoleHeight):
+        return True
+    # Back plate:    |x|<=Pw/2, |y|<=PlateLength/2, plate z‑range
+    if (abs(x) <= 0.5 * YokePlateWidth
+        and abs(y) <= 0.5 * YokePlateLength
+        and 0.5 * Gap + YokePoleHeight <= z
+            <= 0.5 * Gap + YokePoleHeight + YokePlateHeight):
+        return True
+    # Period‑shifted pole (YokePart02) at y = +Period/2
+    if (abs(x) <= 0.5 * YokePoleWidth
+        and abs(y - 0.5 * Period) <= 0.5 * YokePoleLength
+        and 0.5 * Gap <= z <= 0.5 * Gap + YokePoleHeight):
+        return True
+    if (abs(x) <= 0.5 * YokePlateWidth
+        and abs(y - 0.5 * Period) <= 0.5 * YokePlateLength
+        and 0.5 * Gap + YokePoleHeight <= z
+            <= 0.5 * Gap + YokePoleHeight + YokePlateHeight):
+        return True
+    return False
+
+
+def stored_energy_air(obj, Period, Gap,
+                       xmax=120., ymax=120., zmax=80.,
+                       nx=60,  ny=60,  nz=40,
+                       include_iron_box=False):
+    """Stored magnetic energy [J] by integrating B^2/(2 mu0) over the air.
+
+    Uses 1/8 symmetry of the full magnet (mirror in x, y and z), samples B
+    with rad.Fld on a uniform Cartesian grid in (0..xmax, 0..ymax, 0..zmax)
+    [mm] and multiplies by 8.  Points inside the iron of the upper jaw are
+    skipped unless include_iron_box=True (in which case the result is the
+    co‑energy‑like estimate that matches |FldEnr(coilupper, tt)|).
+
+    Returns
+    -------
+    W_air : float
+        Stored magnetic energy in air [J].
+    """
+    # Build grid (cell‑centred so no point sits exactly on the symmetry planes)
+    dx = xmax / nx
+    dy = ymax / ny
+    dz = zmax / nz
+    dV_mm3 = dx * dy * dz          # mm^3
+    dV_m3  = dV_mm3 * 1e-9         # m^3
+
+    pts = []
+    keep = []
+    for iz in range(nz):
+        z = (iz + 0.5) * dz
+        for iy in range(ny):
+            y = (iy + 0.5) * dy
+            for ix in range(nx):
+                x = (ix + 0.5) * dx
+                pts.append([x, y, z])
+                keep.append(include_iron_box
+                            or not _point_in_iron(x, y, z, Period, Gap))
+
+    # Single batched field call (fast).  With a list of points and the
+    # "bxbybz" key, rad.Fld returns either a list of 3-vectors
+    # [[bx,by,bz], ...] or a flat list [bx,by,bz, bx,by,bz, ...] depending
+    # on the Radia build, so handle both.
+    B = rad.Fld(obj, 'bxbybz', pts)
+    N = len(pts)
+    if len(B) == N and hasattr(B[0], '__len__'):
+        # Nested:  B[i] = [bx, by, bz]
+        get = lambda i: (B[i][0], B[i][1], B[i][2])
+    else:
+        # Flat:    B = [bx0, by0, bz0, bx1, by1, bz1, ...]
+        get = lambda i: (B[3 * i], B[3 * i + 1], B[3 * i + 2])
+
+    sumB2 = 0.0
+    for i, ok in enumerate(keep):
+        if not ok:
+            continue
+        bx, by, bz = get(i)
+        sumB2 += bx * bx + by * by + bz * bz
+
+    # Energy density [J/m^3] = B^2 / (2 mu0); volume in m^3; * 8 octants
+    W = 8.0 * sumB2 * dV_m3 / (2.0 * _MU0_SI)
+    return W
+
+
+# ===========================================================================
 # XC06 low-carbon steel — Froelich formula from Radia Mathematica package
 # RadMatXc06[] := radMatSatIso[{1.362,0.2605,0.4917},{2118.,63.06,17.138}]
 # M(H) = sum_i  ms_i * H / (ks_i + H)    [H in Oe, M in T]
@@ -382,7 +501,10 @@ if __name__ == '__main__':
     rad.FldCmpPrc('PrcEnergy->1e-7')
     # Notebook method: coilcenter = {upper +I, lower -I}, coilsides = all 4
     l1 = abs(rad.FldEnr(Grp['coilcenter'], tt, [10, 10, 10]) / Cur**2)
-    l2 = abs(rad.FldEnr(Grp['coilsides'],  tt, [10, 10, 10]) / Cur**2)
+    l2 = abs(rad.FldEnr(Grp['coilsides'],  tt, [10, 10, 10]) / SCur**2)
+    ENERGY=abs(rad.FldEnr(Grp['coilcenter'], tt, [10, 10, 10]))+abs(rad.FldEnr(Grp['coilsides'],  tt, [10, 10, 10]))
+    print(f'  E  = {ENERGY:.1f} J     (notebook: 2033.5 J = L·I²)')                                                         
+
     L_nb_uH = 2.0e6 * (l1 + 2. * l2)
     E_nb    = (l1 + 2. * l2) * Cur**2
     # Upper-jaw method: FldEnr of upper coils only in full-system field
@@ -400,6 +522,28 @@ if __name__ == '__main__':
     print(f'  FldEnr(coilupper) = {enr_upper:.1f} J')
     print(f'  L_eff             = {L_eff_uH:.4f} µH  (effective L for opposing-current system)')
     print(f'  Stored energy W   = {W_stored:.1f} J  (true stored energy = (L-M)·I²)')
+    print(f'    cf. Opera-3D reference ~1250 J')
+    print(f'Energy time : {t1 - t0:.1f} s')
+
+    # ---- True stored energy: B^2/(2 mu0) integrated over the air region ----
+    # This matches Opera-3D's "stored magnetic energy" (integral H.dB) because
+    # in the air gap H.dB = B.dB/mu0 and W = B^2/(2 mu0).  The iron volume is
+    # masked out (its small contribution would be miscounted because in
+    # saturated iron W < B^2/(2 mu0)).
+    print()
+    print('--- B^2/(2 mu0) volume integral (true stored energy) ---')
+    t0 = time()
+    W_air = stored_energy_air(tt, pper, gg,
+                              xmax=120., ymax=120., zmax=80.,
+                              nx=60, ny=60, nz=40,
+                              include_iron_box=False)
+    W_box = stored_energy_air(tt, pper, gg,
+                              xmax=120., ymax=120., zmax=80.,
+                              nx=60, ny=60, nz=40,
+                              include_iron_box=True)
+    t1 = time()
+    print(f'  W (air region only)       = {W_air:.1f} J')
+    print(f'  W (whole bounding box)    = {W_box:.1f} J')
     print(f'    cf. Opera-3D reference ~1250 J')
     print(f'Energy time : {t1 - t0:.1f} s')
 

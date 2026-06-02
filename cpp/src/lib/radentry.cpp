@@ -27,6 +27,7 @@ void MultGenExtrPolygonDLL( double*, int*, double*, int, double* );
 void MultGenExtrRectangleDLL( double*, double*, int, double* );
 //void MultGenExtrTriangleDLL( double, double, double*, double*, int, char, double*, const char*,const char*,const char* );
 void MultGenExtrTriangleDLL( double, double, double*, double*, int, char, double*, const char*,const char*,const char*,const char* ); //OC30072018
+void MultGenExtrPolygonCurDLL( double, const char*, double*, int, double***, char**, int*, int, double, const char* );
 
 void ArcMag( double,double,double, double,double, double,double, double, int, char*, double,double,double );
 void ArcPolygon();
@@ -240,6 +241,18 @@ int CALL RadObjPolyhdr(int* n, double* pFlatVertices, int NumVertices, int* pFla
 int CALL RadObjMltExtPgn(int* n, double* pFlatVertices, int* pLayerLengths, double* pAttitudes, int NumLayers, double* pM)
 {// pFlatVertices - flat array of 2d points
 	MultGenExtrPolygonDLL(pFlatVertices, pLayerLengths, pAttitudes, NumLayers, pM);
+
+	*n = ioBuffer.OutInt();
+	return ioBuffer.OutErrorStatus();
+}
+
+//-------------------------------------------------------------------------
+
+int CALL RadObjMltExtPgnCur(int* n, double zc, char a, double* pFlatVertices, int nv, double*** arPtrTrfParInExtrSteps, char** arStrTrfOrderInExtrSteps, int* arNumTrfInExtrSteps, int NumSteps, double i, char* sOpt)
+{// pFlatVertices - flat array of 2d points
+	char sOrient[] = "z";
+	sOrient[0] = a;
+	MultGenExtrPolygonCurDLL(zc, sOrient, pFlatVertices, nv, arPtrTrfParInExtrSteps, arStrTrfOrderInExtrSteps, arNumTrfInExtrSteps, NumSteps, i, sOpt);
 
 	*n = ioBuffer.OutInt();
 	return ioBuffer.OutErrorStatus();

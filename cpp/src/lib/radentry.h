@@ -308,8 +308,7 @@ EXP int CALL RadObjFlmCur(int* n, double* FlatPts, int np, double i);
 @return integer error code (0 : no error, >0 : error number, <0 : warning number)
 @author O.C.
 */
-//EXP int CALL RadObjMltExtPgnCur(int* n, double* FlatVert, int nv, 
-//	double* FlatVert, int* SlicesLen, double* Attitudes, int ns, double* M,      double z, char a, double i, char* opt);
+EXP int CALL RadObjMltExtPgnCur(int* n, double z, char a, double* FlatVert, int nv, double*** TrfParInExtrSteps, char** TrfOrderInExtrSteps, int* NumTrfInExtrSteps, int NumSteps, double i, char* opt);
 
 /** Scales current (density) in a 3D object by multiplying it by a constant.
 @param n [out] reference number of the object with current (density) to be scaled

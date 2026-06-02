@@ -423,6 +423,122 @@ static PyObject* radia_ObjMltExtPgn(PyObject* self, PyObject* args)
 }
 
 /************************************************************************//**
+* Creates current-carrying convex polyhedrons by generalized extrusion.
+***************************************************************************/
+static PyObject* radia_ObjMltExtPgnCur(PyObject* self, PyObject* args)
+{
+	PyObject *oPgn=0, *oExtr=0, *oOpt=0, *oResInd=0;
+	double *arCrd=0;
+	double ***arPtrTrfParInExtrSteps=0;
+	char **arStrTrfOrderInExtrSteps=0;
+	int *arNumTrfInExtrSteps=0;
+	int NumSteps = 0;
+
+	try
+	{
+		double zc = 0, avgCur = 0;
+		char *sOrnt = 0;
+		if(!PyArg_ParseTuple(args, "dsOOd|O:ObjMltExtPgnCur", &zc, &sOrnt, &oPgn, &oExtr, &avgCur, &oOpt)) throw CombErStr(strEr_BadFuncArg, ": ObjMltExtPgnCur");
+		if((sOrnt == 0) || (oPgn == 0) || (oExtr == 0)) throw CombErStr(strEr_BadFuncArg, ": ObjMltExtPgnCur");
+
+		char a = *sOrnt;
+		if((a != 'x') && (a != 'X') && (a != 'y') && (a != 'Y') && (a != 'z') && (a != 'Z')) throw CombErStr(strEr_BadFuncArg, ": ObjMltExtPgnCur, orientation should be 'x', 'y' or 'z'");
+
+		vector<double> vCrd;
+		if(!(CPyParse::CopyPyNestedListElemsToNumVect(oPgn, 'd', &vCrd))) throw CombErStr(strEr_BadFuncArg, ": ObjMltExtPgnCur, incorrect polygon definition");
+		int nCrd = (int)vCrd.size();
+		int nv = (int)round(nCrd/2.);
+		if((nv < 3) || (nCrd != nv*2)) throw CombErStr(strEr_BadFuncArg, ": ObjMltExtPgnCur, incorrect polygon definition");
+		CAuxParse::DoubleVect2Arr(vCrd, arCrd);
+
+		if(!PyList_Check(oExtr)) throw CombErStr(strEr_BadFuncArg, ": ObjMltExtPgnCur, incorrect extrusion path definition");
+		NumSteps = (int)PyList_Size(oExtr);
+		if(NumSteps <= 0) throw CombErStr(strEr_BadFuncArg, ": ObjMltExtPgnCur, extrusion path should contain at least one step");
+
+		arPtrTrfParInExtrSteps = new double**[NumSteps];
+		arStrTrfOrderInExtrSteps = new char*[NumSteps];
+		arNumTrfInExtrSteps = new int[NumSteps];
+		for(int i=0; i<NumSteps; i++)
+		{
+			arPtrTrfParInExtrSteps[i] = 0;
+			arStrTrfOrderInExtrSteps[i] = 0;
+			arNumTrfInExtrSteps[i] = 0;
+		}
+
+		for(int i=0; i<NumSteps; i++)
+		{
+			PyObject *oStep = PyList_GetItem(oExtr, (Py_ssize_t)i);
+			if((oStep == 0) || (!PyList_Check(oStep))) throw CombErStr(strEr_BadFuncArg, ": ObjMltExtPgnCur, incorrect extrusion step definition");
+
+			int numTrf = (int)PyList_Size(oStep);
+			if(numTrf <= 0) throw CombErStr(strEr_BadFuncArg, ": ObjMltExtPgnCur, extrusion step should contain at least one transformation");
+			arNumTrfInExtrSteps[i] = numTrf;
+			arPtrTrfParInExtrSteps[i] = new double*[numTrf];
+			arStrTrfOrderInExtrSteps[i] = new char[numTrf + 1];
+			arStrTrfOrderInExtrSteps[i][numTrf] = '\0';
+
+			for(int j=0; j<numTrf; j++)
+			{
+				arPtrTrfParInExtrSteps[i][j] = 0;
+				PyObject *oTrf = PyList_GetItem(oStep, (Py_ssize_t)j);
+				if(oTrf == 0) throw CombErStr(strEr_BadFuncArg, ": ObjMltExtPgnCur, incorrect transformation definition");
+
+				if(PyList_Check(oTrf) && (PyList_Size(oTrf) == 3) && PyNumber_Check(PyList_GetItem(oTrf, 0)))
+				{
+					arStrTrfOrderInExtrSteps[i][j] = 't';
+					arPtrTrfParInExtrSteps[i][j] = new double[3];
+					CPyParse::CopyPyListElemsToNumArrayKnownLen(oTrf, 'd', arPtrTrfParInExtrSteps[i][j], 3, CombErStr(strEr_BadFuncArg, ": ObjMltExtPgnCur, incorrect translation definition"));
+				}
+				else if(PyList_Check(oTrf) && (PyList_Size(oTrf) == 3) && PyList_Check(PyList_GetItem(oTrf, 0)) && PyList_Check(PyList_GetItem(oTrf, 1)) && PyNumber_Check(PyList_GetItem(oTrf, 2)))
+				{
+					arStrTrfOrderInExtrSteps[i][j] = 'r';
+					arPtrTrfParInExtrSteps[i][j] = new double[7];
+					CPyParse::CopyPyListElemsToNumArrayKnownLen(PyList_GetItem(oTrf, 0), 'd', arPtrTrfParInExtrSteps[i][j], 3, CombErStr(strEr_BadFuncArg, ": ObjMltExtPgnCur, incorrect rotation center definition"));
+					CPyParse::CopyPyListElemsToNumArrayKnownLen(PyList_GetItem(oTrf, 1), 'd', arPtrTrfParInExtrSteps[i][j] + 3, 3, CombErStr(strEr_BadFuncArg, ": ObjMltExtPgnCur, incorrect rotation axis definition"));
+					arPtrTrfParInExtrSteps[i][j][6] = PyFloat_AsDouble(PyList_GetItem(oTrf, 2));
+				}
+				else throw CombErStr(strEr_BadFuncArg, ": ObjMltExtPgnCur, unsupported transformation definition");
+			}
+		}
+
+		char sOpt[1024]; *sOpt = '\0';
+		if(oOpt != 0) CPyParse::CopyPyStringToC(oOpt, sOpt, 1024);
+
+		int ind = 0;
+		g_pyParse.ProcRes(RadObjMltExtPgnCur(&ind, zc, a, arCrd, nv, arPtrTrfParInExtrSteps, arStrTrfOrderInExtrSteps, arNumTrfInExtrSteps, NumSteps, avgCur, sOpt));
+		oResInd = Py_BuildValue("i", ind);
+		Py_XINCREF(oResInd);
+	}
+	catch(const char* erText)
+	{
+		PyErr_SetString(PyExc_RuntimeError, erText);
+		//PyErr_PrintEx(1);
+	}
+
+	if(arPtrTrfParInExtrSteps != 0)
+	{
+		for(int i=0; i<NumSteps; i++)
+		{
+			if(arPtrTrfParInExtrSteps[i] != 0)
+			{
+				int numTrf = (arNumTrfInExtrSteps != 0)? arNumTrfInExtrSteps[i] : 0;
+				for(int j=0; j<numTrf; j++) if(arPtrTrfParInExtrSteps[i][j] != 0) delete[] arPtrTrfParInExtrSteps[i][j];
+				delete[] arPtrTrfParInExtrSteps[i];
+			}
+		}
+		delete[] arPtrTrfParInExtrSteps;
+	}
+	if(arStrTrfOrderInExtrSteps != 0)
+	{
+		for(int i=0; i<NumSteps; i++) if(arStrTrfOrderInExtrSteps[i] != 0) delete[] arStrTrfOrderInExtrSteps[i];
+		delete[] arStrTrfOrderInExtrSteps;
+	}
+	if(arNumTrfInExtrSteps != 0) delete[] arNumTrfInExtrSteps;
+	if(arCrd != 0) delete[] arCrd;
+	return oResInd;
+}
+
+/************************************************************************//**
 * Attempts to create one uniformly magnetized convex polyhedron or a set of convex polyhedrons based on rectangular slices
 ***************************************************************************/
 static PyObject* radia_ObjMltExtRtg(PyObject* self, PyObject* args)
@@ -3257,6 +3373,7 @@ static PyMethodDef radia_methods[] = {
 	{"ObjThckPgn", radia_ObjThckPgn, METH_VARARGS, "ObjThckPgn(x,lx,[[y1,z1],[y2,z2],...],a:'x',[mx,my,mz]:[0,0,0]) creates an extruded polygon block; x is the position of the block's center of gravity in the extrusion direction, lx is the thickness, [[y1,z1],[y2,z2],...] is a list of points describing the polygon in 2D; the extrusion direction is defined by the character a (which can be 'x', 'y' or 'z'), [mx,my,mz] is the block magnetization."},
 	{"ObjPolyhdr", radia_ObjPolyhdr, METH_VARARGS, "ObjPolyhdr([[x1,y1,z1],[x2,y2,z2],...],[[f1i1,f1i2,...],[f2i1,f2i2,...],...],[mx,my,mz]:[0,0,0],J:[jx,jy,jz]|[[jx,jy,jz],[[djxdy,djxdy,djxdz],[djydy,djydy,djydz],[djzdy,djzdy,djzdz]]],Lin:'Rel') creates a uniformly magnetized polyhedron (closed volume limited by planes). [[x1,y1,z1],[x2,y2,z2],...] is a list of the polyhedron vertex points, [[f1n1,f1n2,...],[f2n1,f2n2,...],...] is a list of lists of indexes of vertex points defining the polyhedron faces, [mx,my,mz] is magnetization inside the polyhedron. The optional parameter J can be used to define constant [jx,jy,jz] or linearly-varying current density vector inside the polyhedron; the linear dependence can be defined through 3x3 matrix of coefficients [[djxdy,djxdy,djxdz],[djydy,djydy,djydz],[djzdy,djzdy,djzdz]]; depending on the value of the optional parameter Lin this linear dependence is treated with respect to the polyhedron center (Lin='Rel', default) or with respect to the origin of the Cartesian frame (Lin='Abs')."},
 	{"ObjMltExtPgn", radia_ObjMltExtPgn, METH_VARARGS, "ObjMltExtPgn([[[[x11,y11],[x12,y12],...],z1],[[[x21,y21],[x22,y22],...],z2],...],[mx,my,mz]:[0,0,0]) attempts to create one uniformly magnetized convex polyhedron or a set of convex polyhedrons based on slices. The slice polygons are defined by the nested list [[[[x11,y11],[x12,y12],...],z1],[[[x21,y21],[x22,y22],...],z2],...], with [[x11,y11],[x12,y12],...],... describing the polygons in 2D, and z1, z2,... giving their attitudes (vertical coordinates). [mx,my,mz] is the magnetization inside the polyhedron(s) created."},
+	{"ObjMltExtPgnCur", radia_ObjMltExtPgnCur, METH_VARARGS, "ObjMltExtPgnCur(z,a,[[x1,y1],[x2,y2],...],[[R1,T1,...],[R2,T2,...]],I,Frame->Loc|Lab) creates current-carrying convex polyhedrons by generalized extrusion of a planar polygon."},
 	//{"ObjMltExtPgnCur", radia_ObjMltExtPgnCur, METH_VARARGS, "ObjMltExtPgnCur(z:0,a:\"z\",{{{x1,y1},{x2,y2},...},{{R1,T1,H1},{R2,T2,H2},...}},I,Frame->Loc|Lab) attempts to create a set of current-carrying convex polyhedron objects by applying a generalized extrusion to the initial planar convex polygon. The initial polygon is defined for the \"attitude\" z (0 by default) by the list of 2D points {{x1,y1},{x2,y2},...}, with the  a  character specifying orientation of this polygon normal in 3D space: if a = \"z\" (default orientation), the polygon is assumed to be parallel to XY plane of the laboratory frame (\"y\" for ZX plane, \"x\" for YZ plane). The extrusion can consist of a number of \"steps\", with each step creating one convex polyhedron defined optionally by one (or combination of) rotation(s), and/or translation(s), and/or one homothety: {Rk,Tk,Hk}, k = 1,2,..., applied to the base polygon (i.e. either the initial base polygon, or the polygon obtained by previous extrusion step). In case if k-th extrusion step contains one rotation Rk about an axis, it is defined as {{xRk,yRk,zRk},{vxRk,vyRk,vzRk},phRk}}, where {xRk,yRk,zRk} and {vxRk,vyRk,vzRk} are respectively 3D coordinates of a point and a vector difining the rotation axis, and phRk the rotation angle in radians; in case if Rk is a combination of \"atomic\" rotations about different axes, it should be defined as list: {Rk1,Rk2,...}. If k-th extrusion step includes translation Tk, it must be defined by vector {vxTk,vyTk,vzTk}; optional homothety with respect to the base polygon center of gravity should be defined either by two different coefficients {pxHk,pyHk} with respect to two orthogonal axes of the base polygon local frame, or by nested list {{pxHk,pyHk},phHk}, where phHk is rotation angle of the two homothety axes in radians. A real number I defines average current in Amperes along the extrusion path. The Frame->Loc or Frame->Lab option specifies whether the transformations at each step of the extrusion path are defined in the frame of the previous base polygon (Frame->Loc, default), or all the transformations are defined in the laboratory frame (Frame->Lab)."},
 	//{"ObjMltExtPgnMag", radia_ObjMltExtPgnMag, METH_VARARGS, "ObjMltExtPgnMag(z:0,a:\"z\",{{{x1,y1},{x2,y2},...},{{k1,q1},{k2,q2},...}:{{1,1},{1,1},...},{{R1,T1,H1},{R2,T2,H2},...}},{{mx1,my1,mz1},{mx2,my2,mz2},...}:{{0,0,0},{0,0,0},...},Frame->Loc|Lab,ki->Numb|Size,TriAngMin->...,TriAreaMax->...,TriExtOpt->\"...\") attempts to create a set of uniformly magnetized polyhedron objects by applying a generalized extrusion to the initial planar convex polygon. The initial polygon is defined for the \"altitude\" z (0 by default) by the list of 2D points {{x1,y1},{x2,y2},...}, with the  a  character specifying orientation of this polygon normal in 3D space: if a = \"z\" (default orientation), the polygon is assumed to be parallel to XY plane of the laboratory frame (\"y\" for ZX plane, \"x\" for YZ plane). The extrusion can consist of a number of \"steps\", with each step creating one convex polyhedron defined optionally by one (or combination of) rotation(s), and/or translation(s), and/or one homothety: {Rk,Tk,Hk}, k = 1,2,..., applied to the base polygon (i.e. either the initial base polygon, or the polygon obtained by previous extrusion step). In case if k-th extrusion step contains one rotation Rk about an axis, it is defined as {{xRk,yRk,zRk},{vxRk,vyRk,vzRk},phRk}}, where {xRk,yRk,zRk} and {vxRk,vyRk,vzRk} are respectively 3D coordinates of a point and a vector difining the rotation axis, and phRk the rotation angle in radians; in case if Rk is a combination of \"atomic\" rotations about different axes, it should be defined as a list: {Rk1,Rk2,...}. If k-th extrusion step includes translation Tk, it must be defined by vector {vxTk,vyTk,vzTk}; optional homothety with respect to the base polygon center of gravity should be defined either by two different coefficients {pxHk,pyHk} with respect to two orthogonal axes of the base polygon local frame, or by nested list {{pxHk,pyHk},phHk}, where phHk is rotation angle of the two homothety axes in radians. Optional list {{mx1,my1,mz1},{mx2,my2,mz2},...} defines magnetization vectors in each of polyhedrons to be created. The Frame->Loc or Frame->Lab option specifies whether the transformations at each step of the extrusion path are defined in the frame of the previous base polygon (Frame->Loc, default), or all the transformations are defined in the laboratory frame (Frame->Lab). Optionally, the object can be subdivided by (extruded) triangulation at its creation; this occurs if {{k1,q1},{k2,q2},...} subdivision (triangulation) parameters for each segment of the base polygon border are defined; the meaning of k1, k2,... depends on value of the option ki: if ki->Numb (default), then k1, k2,... are subdivision numbers; if ki->Size, they are average sizes of sub-segments to be produced; q1, q2,... are ratios of the last-to-first sub-segment lengths; the TriAngMin option defines minimal angle of triangles to be produced (in degrees, default is 20); the TriAreaMax option defines maximal area of traingles to be produced (in mm^2, not defined by default); the ExtOpt option allows to specify additional parameters for triangulation function in a string." },
 	{"ObjMltExtRtg", radia_ObjMltExtRtg, METH_VARARGS, "ObjMltExtRtg([[[x1,y1,z1],[wx1,wy1]],[[x2,y2,z2],[wx2,wy2]],...],[mx,my,mz]:[0,0,0]) attempts to create one uniformly magnetized convex polyhedron or a set of convex polyhedrons based on rectangular slices. The slice rectangles are defined by the nested list [[[x1,y1,z1],[wx1,wy1]],[[x2,y2,z2],[wx2,wy2]],...], with [x1,y1,z1], [x2,y2,z2],... being center points of the rectangles, and [wx1,wy1], [wx2,wy2],... their dimensions. [mx,my,mz] is the magnetization inside the polyhedron(s) created."},

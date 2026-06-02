@@ -57,6 +57,7 @@ void Polyhedron2();
 void MultGenExtrPolygon();
 void MultGenExtrPolygonOpt( double**, double*, int*, int, double* );
 void MultGenExtrPolygonDLL( double*, int*, double*, int, double* );
+void MultGenExtrPolygonCurDLL( double, const char*, double*, int, double***, char**, int*, int, double, const char* );
 void MultGenExtrPolygonCur();
 void MultGenExtrPolygonMag();
 void MultGenExtrRectangle();
@@ -1170,6 +1171,53 @@ void MultGenExtrPolygonDLL(double* Layers, int* AmOfPointsInLayers, double* Heig
 		for(int k=0; k<AmOfLayers; k++) delete[] (LayerPolygons[k]);
 		delete[] LayerPolygons;
 	}
+}
+
+//-------------------------------------------------------------------------
+
+void MultGenExtrPolygonCurDLL(
+	double zc, const char* strOrient,
+	double* flatVerts2d, int nVerts,
+	double*** arPtrTrfParInExtrSteps,
+	char** arStrTrfOrderInExtrSteps,
+	int* arNumTrfInExtrSteps,
+	int numSteps,
+	double avgCur,
+	const char* sFrameOpt)
+{
+	if((flatVerts2d == 0) || (nVerts <= 0) || (arPtrTrfParInExtrSteps == 0) || (numSteps <= 0))
+	{ rad.Send.ErrorMessage("Radia::Error000"); return; }
+
+	TVector2d* arPoints2d = new TVector2d[nVerts];
+	if(arPoints2d == 0) { rad.Send.ErrorMessage("Radia::Error900"); return; }
+	double* tFlat = flatVerts2d;
+	for(int i=0; i<nVerts; i++) { arPoints2d[i].x = *tFlat++; arPoints2d[i].y = *tFlat++; }
+
+	// Parse "Frame->Lab" / "Frame->Loc" / "Frame->LabTot" from the option string
+	const char sOptNameFrame[] = "Frame";
+	const char sOptValLoc[] = "Loc";
+	const char sOptValLab[] = "Lab";
+	const char sOptValLabTot[] = "LabTot";
+	const char* optVal = sOptValLoc; // default: local frame
+	if(sFrameOpt != 0)
+	{
+		const char* pArrow = strstr(sFrameOpt, "->");
+		if(pArrow != 0)
+		{
+			const char* pVal = pArrow + 2;
+			if(strcmp(pVal, "Lab") == 0) optVal = sOptValLab;
+			else if(strcmp(pVal, "LabTot") == 0) optVal = sOptValLabTot;
+			// else keep "Loc"
+		}
+	}
+	const char* arOptNames[] = { sOptNameFrame };
+	const char* arOptValues[] = { optVal };
+
+	rad.SetMultGenExtrPolygonCur(zc, strOrient, arPoints2d, nVerts, 0,
+		arPtrTrfParInExtrSteps, arStrTrfOrderInExtrSteps, arNumTrfInExtrSteps,
+		numSteps, avgCur, 0, arOptNames, arOptValues, 1);
+
+	delete[] arPoints2d;
 }
 
 //-------------------------------------------------------------------------
